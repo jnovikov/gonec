@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"reflect"
 	"runtime"
 	"strings"
@@ -96,7 +97,7 @@ func Run(stmts binstmt.BinCode, env *core.Env) (retval core.VMValuer, reterr err
 
 	if !env.IsBuiltsLoaded() {
 		// эту функцию определяем тут, чтобы исключить циклические зависимости пакетов
-		env.DefineS("загрузитьивыполнить", core.VMFunc(func(args core.VMSlice, rets *core.VMSlice, envout *(*core.Env)) error {
+		evFunc := func(args core.VMSlice, rets *core.VMSlice, envout *(*core.Env)) error {
 			*envout = env
 			if len(args) != 1 {
 				return errors.New("Должен быть один параметр")
@@ -142,6 +143,30 @@ func Run(stmts binstmt.BinCode, env *core.Env) (retval core.VMValuer, reterr err
 				return nil
 			}
 			return errors.New("Должен быть параметр-строка")
+		}
+		env.DefineS("загрузитьивыполнить", core.VMFunc(evFunc))
+		env.DefineS("выполнить", core.VMFunc(func(args core.VMSlice, rets *core.VMSlice, envout *(*core.Env)) error {
+			if len(args) != 1 {
+				return errors.New("Должен быть один параметр")
+			}
+			var s string
+			if vms, ok := args[0].(core.VMString); ok {
+				s = vms.String()
+			} else {
+				errors.New("Должен быть параметр-строка")
+			}
+			f, err := ioutil.TempFile("", "eval")
+			if err != nil {
+				return nil
+			}
+			fmt.Fprintln(f, s)
+			if err := f.Close(); err != nil {
+				return err
+			}
+			defer os.Remove(f.Name())
+			var nArgs core.VMSlice
+			nArgs = append(nArgs, core.VMString(f.Name()))
+			return evFunc(nArgs, rets, envout)
 		}))
 
 		core.LoadAllBuiltins(env)

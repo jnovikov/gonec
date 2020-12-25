@@ -3,6 +3,8 @@ package core
 
 import (
 	"fmt"
+	"io/ioutil"
+	"net/url"
 	"os"
 	"reflect"
 	"runtime"
@@ -129,6 +131,16 @@ func Import(env *Env) *Env {
 	env.DefineS("длительностьминуты", VMMinute)
 	env.DefineS("длительностьчаса", VMHour)
 	env.DefineS("длительностьдня", VMDay)
+
+	env.DefineS("прочитатьфайл", VMFuncMustParams(1, func(args VMSlice, rets *VMSlice, envout *(*Env)) error {
+		*envout = env
+		if v, ok := args[0].(VMString); ok {
+			data, err := ioutil.ReadFile(v.String())
+			rets.Append(VMString(data), VMBool(err == nil))
+			return nil
+		}
+		return VMErrorNeedString
+	}))
 
 	env.DefineS("хэш", VMFuncMustParams(1, func(args VMSlice, rets *VMSlice, envout *(*Env)) error {
 		*envout = env
@@ -260,6 +272,15 @@ func Import(env *Env) *Env {
 		v3, ok3 := args[2].(VMStringer)
 		if ok1 && ok2 && ok3 {
 			rets.Append(VMString(strings.Replace(string(v1.String()), string(v2.String()), string(v3.String()), -1)))
+			return nil
+		}
+		return VMErrorNeedString
+	}))
+
+	env.DefineS("стрдекодироватьзапрос", VMFuncMustParams(1, func(args VMSlice, rets *VMSlice, envout *(*Env)) error {
+		if v, ok := args[0].(VMString); ok {
+			dec, err := url.QueryUnescape(v.String())
+			rets.Append(VMString(dec), VMBool(err == nil))
 			return nil
 		}
 		return VMErrorNeedString
